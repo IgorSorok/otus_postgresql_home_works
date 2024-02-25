@@ -132,7 +132,36 @@ sber=# select * from sber;
 (5 rows)
 ```
 
-**6. Удаляем контейнер:**
+**6. Удаленное подкдючение с ноутбука**
+Открыл новую вкадку в своей локальной Ubuntu
+```sql
+root@ubuntu:/home/igor# psql -p 5432 -U postgres -h 158.160.103.28 -d sber -W
+Password: 
+psql (14.10 (Ubuntu 14.10-0ubuntu0.22.04.1), server 15.6 (Debian 15.6-1.pgdg120+2))
+WARNING: psql major version 14, server major version 15.
+         Some psql features might not work.
+Type "help" for help.
+
+sber=# select * from sber;
+ id | name  
+----+-------
+  1 | igor
+  2 | oleg
+  3 | sacha
+  4 | yri
+  5 | liza
+(5 rows)
+## Видно что клиенты postgres отличаются, в докере 15 версия, в локали 14
+## Сделал апгрейд и варнинг пропал
+
+root@ubuntu:/home/igor# psql -p 5432 -U postgres -h 158.160.103.28 -d sber -W
+Password: 
+psql (15.6 (Ubuntu 15.6-1.pgdg22.04+1))
+Type "help" for help.
+sber=# \q
+```
+
+**7. Удаляем контейнер:**
 ```sql
 yc-user@sber-vm:~$ sudo docker ps -a
 CONTAINER ID   IMAGE         COMMAND                  CREATED       STATUS       PORTS                                                 NAMES
@@ -144,7 +173,7 @@ yc-user@sber-vm:~$ sudo docker stop 896413e533ab
 yc-user@sber-vm:~$ sudo docker rm 896413e533ab
 896413e533ab
 ```
-**7. Устанавливаем снова:**
+**8. Устанавливаем снова:**
 ```sql
 sudo docker run --name sber-server --network sber-net -e POSTGRES_PASSWORD=postgres -d -p 5434:5434 -v /var/lib/postgres:/var/lib/postgresql/data postgres:15
 4967fbe77e0c06a0cc0042f16bfa7c3216eb8af91b98af2f921cdc5b0efd155e
