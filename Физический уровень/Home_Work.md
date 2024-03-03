@@ -182,6 +182,130 @@ postgres=# select * from poc ;
 | fhmi0avn4asu024v0vld | sber-vm | ru-central1-a | STOPPED |               | 192.168.0.9  |
 +----------------------+---------+---------------+---------+---------------+--------------+
 
+## Стоавю оба кластера postgres
+
+yc-user@otus-vm:~$ pg_lsclusters 
+Ver Cluster Port Status Owner    Data directory              Log file
+14  main    5432 down   postgres /var/lib/postgresql/14/main /var/log/postgresql/postgresql-14-main.log
+
+yc-user@sber-vm:~$ pg_lsclusters 
+Ver Cluster Port Status Owner    Data directory    Log file
+14  main    5432 down   postgres /mnt/data/14/main /var/log/postgresql/postgresql-14-main.log
+
+## Стопаю обе виртуалки
++----------------------+---------+---------------+---------+-------------+--------------+
+|          ID          |  NAME   |    ZONE ID    | STATUS  | EXTERNAL IP | INTERNAL IP  |
++----------------------+---------+---------------+---------+-------------+--------------+
+| fhmg332t5s8kbjdmpc2d | otus-vm | ru-central1-a | STOPPED |             | 192.168.0.11 |
+| fhmi0avn4asu024v0vld | sber-vm | ru-central1-a | STOPPED |             | 192.168.0.9  |
++----------------------+---------+---------------+---------+-------------+--------------+
+
+
+
+
+## Смотрю список дисков подключенных к sber-vm
+yc compute instance get --full fhmi0avn4asu024v0vld
+
+## видно, что подключено два диска
+boot_disk:
+  mode: READ_WRITE
+  device_name: fhmo0p0s9qj3aeuhok32
+  auto_delete: true
+  disk_id: fhmo0p0s9qj3aeuhok32
+
+secondary_disks:
+  - mode: READ_WRITE
+    device_name: fhmtk1fp38le1ego95cg
+    auto_delete: true
+    disk_id: fhmtk1fp38le1ego95cg
+
+## Произвожу отключение второго диска
+
+root@ubuntu:/home/igor# yc compute instance detach-disk fhmi0avn4asu024v0vld\
+  --disk-id fhmtk1fp38le1ego95cg
+done (5s)
+
+- Остался только загрузочный
+boot_disk:
+  mode: READ_WRITE
+  device_name: fhmo0p0s9qj3aeuhok32
+  auto_delete: true
+  disk_id: fhmo0p0s9qj3aeuhok32
+
+## Пожключаем диск к otus-vm
+
+root@ubuntu:/home/igor# yc compute instance attach-disk otus-vm \
+    --disk-name new-disk \
+    --mode rw \
+    --auto-delete
+done (6s)
+
+## Проверка
+
+id: fhmg332t5s8kbjdmpc2d
+folder_id: b1gc98ibo9t3kn2dpf5m
+created_at: "2024-02-28T08:56:01Z"
+name: otus-vm
+
+boot_disk:
+  mode: READ_WRITE
+  device_name: fhm288f9kbjflln8o75u
+  auto_delete: true
+  disk_id: fhm288f9kbjflln8o75u
+
+secondary_disks:
+  - mode: READ_WRITE
+    device_name: fhmtk1fp38le1ego95cg
+    auto_delete: true
+    disk_id: fhmtk1fp38le1ego95cg
+
+## Подключаюсь к ВМ otus-vm
+
+## Начинаем монтировать диск!
+yc-user@otus-vm:~$ sudo lsblk -o NAME,FSTYPE,SIZE,MOUNTPOINT,LABEL
+NAME   FSTYPE  SIZE MOUNTPOINT LABEL
+vda             15G            
+├─vda1           1M            
+└─vda2 ext4     15G /          
+vdb              1G            
+└─vdb1 ext4   1023M            
+
+yc-user@otus-vm:~$ sudo mkdir /mnt/data ## Создал директорию
+
+yc-user@otus-vm:~$ sudo mount /dev/vdb1 /mnt/data  ## Смонтировал туда диск
+
+yc-user@otus-vm:~$ sudo chmod a+w /mnt/data  ##
+yc-user@otus-vm:~$ sudo chown -R postgres:postgres /mnt/data/ ## Дал необходимые права
+
+## Проверка, неизвестен владелец, необходимо поменять путь в конфиге
+yc-user@otus-vm:~$ pg_lsclusters 
+Ver Cluster Port Status Owner     Data directory              Log file
+14  main    5432 down   <unknown> /var/lib/postgresql/14/main /var/log/postgresql/postgresql-14-main.log
+
+yc-user@otus-vm:~$ sudo vi /etc/postgresql/14/ ## Меняю путь
+
+yc-user@otus-vm:~$ pg_lsclusters 
+Ver Cluster Port Status Owner    Data directory    Log file
+14  main    5432 down   postgres /mnt/data/14/main /var/log/postgresql/postgresql-14-main.log
+
+## Старт кластера
+yc-user@otus-vm:~$ sudo pg_ctlcluster 14 main start
+
+## Подключаюсь в psql
+
+yc-user@otus-vm:~$ sudo su postgres
+postgres@otus-vm:/home/yc-user$ psql
+psql (14.11 (Ubuntu 14.11-1.pgdg20.04+1))
+Type "help" for help.
+
+## Видно, что таблица на месте, запрос к таблице тоже отработал, не прикладываю, тк там 1000 строк
+postgres=# \dt
+        List of relations
+ Schema | Name | Type  |  Owner   
+--------+------+-------+----------
+ public | poc  | table | postgres
+(1 row)
+
 
 ```
 
